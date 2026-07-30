@@ -22,7 +22,7 @@ The backend is backend-mediated by design. If `SLOP_LLM_ENDPOINT` and `SLOP_LLM_
 
 1. Open Chrome Extensions.
 2. Enable Developer Mode.
-3. Choose **Load unpacked** and select the `extension/` directory.
+3. Choose **Load unpacked** and select either the repository root or the `extension/` directory. The root `manifest.json` points Chrome at the extension files for users who select the project root, while `extension/manifest.json` supports loading just the extension folder.
 4. Start the backend locally before requesting recommendations.
 5. Open the bell and acknowledge the privacy disclosure before automatic detection runs.
 
