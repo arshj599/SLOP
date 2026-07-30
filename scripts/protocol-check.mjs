@@ -1,7 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { classify, recommend, tools } from '../backend/server.js';
+import { cacheStats, getTools, resetDbForTests, seedTools, setCache, getCache } from '../backend/persistence.js';
 
-const requiredFiles = ['docs/deployment-protocol.md','extension/manifest.json','extension/background.js','extension/content.js','backend/server.js'];
+const requiredFiles = ['docs/deployment-protocol.md','extension/manifest.json','extension/background.js','extension/content.js','backend/server.js','backend/persistence.js','backend/llm.js'];
 const failures = [];
 for (const file of requiredFiles) if (!existsSync(file)) failures.push(`Missing ${file}`);
 const manifest = JSON.parse(readFileSync('extension/manifest.json', 'utf8'));
@@ -10,17 +11,24 @@ for (const permission of ['activeTab','storage','tabs']) if (!manifest.permissio
 if (!manifest.background?.service_worker) failures.push('Missing background service worker');
 if (!manifest.content_scripts?.[0]?.js?.includes('content.js')) failures.push('Missing content script');
 const content = readFileSync('extension/content.js','utf8');
-for (const token of ['attachShadow', 'Task Input', 'Advanced Search', 'Did you download', 'Free/freemium only', 'You already use this']) if (!content.includes(token)) failures.push(`Content UI missing ${token}`);
+for (const token of ['attachShadow', 'Task Input', 'Advanced Search', 'Did you download', 'Free/freemium only', 'You already use this', 'Privacy disclosure', 'pageMetaDescription', 'applyFilters']) if (!content.includes(token)) failures.push(`Content UI missing ${token}`);
+if (/applyFilters[\s\S]*requestManual\(state\.task\)/.test(content)) failures.push('Filters must not re-request manual recommendations');
 const background = readFileSync('extension/background.js','utf8');
-for (const token of ['chrome.storage.sync', 'SLOP_MANUAL_RECOMMEND', 'SLOP_ADVANCED_RECOMMEND', 'SLOP_SAVE_TOOL', 'chrome.tabs.create', 'setTimeout']) if (!background.includes(token)) failures.push(`Background missing ${token}`);
+for (const token of ['chrome.storage.sync', 'SLOP_MANUAL_RECOMMEND', 'SLOP_ADVANCED_RECOMMEND', 'SLOP_SAVE_TOOL', 'SLOP_ACK_PRIVACY', 'SLOP_CARD_CLICKED', 'chrome.tabs.create', '/cache/check', 'topDomain', 'privacyAcknowledged']) if (!background.includes(token)) failures.push(`Background missing ${token}`);
 const backend = readFileSync('backend/server.js','utf8');
-for (const token of ['/classify', '/recommendations', '/install-guide', 'CACHE_TTL_MS', 'TIER3_LIMIT_PER_HOUR', 'usageEvents']) if (!backend.includes(token)) failures.push(`Backend missing ${token}`);
-const gmail = classify({ url: 'https://mail.google.com/mail/u/0/#inbox' });
+for (const token of ['/classify', '/recommendations', '/install-guide', '/events', '/metrics', '/cache/check', 'CACHE_TTL_MS', 'TIER3_LIMIT_PER_HOUR', 'llmJson', 'allowRate']) if (!backend.includes(token)) failures.push(`Backend missing ${token}`);
+const persistence = readFileSync('backend/persistence.js','utf8');
+for (const token of ['recommendation_cache', 'usage_events', 'rate_limits', 'setCache', 'getCache']) if (!persistence.includes(token)) failures.push(`Persistence missing ${token}`);
+resetDbForTests();
+seedTools(tools);
+const gmail = await classify({ url: 'https://mail.google.com/mail/u/0/#inbox' });
 if (gmail.tier !== 1 || gmail.taskCategory !== 'email management') failures.push('Tier 1 Gmail classification failed');
-const manual = classify({ task: 'I need help debugging a GitHub API test' });
+const manual = await classify({ task: 'I need help debugging a GitHub API test' });
 if (manual.tier !== 3 || manual.taskCategory !== 'coding') failures.push('Tier 3 manual classification failed');
 const recs = recommend({ taskCategory: 'coding', savedTools: [{ toolId: 'github-copilot' }] });
 if (!recs.length || recs[0].id !== 'github-copilot' || !recs[0].alreadySaved) failures.push('Saved tool re-ranking failed');
-if (tools.length < 8) failures.push('Tool database seed is too small');
+setCache('probe', { ok: true }, 10000);
+if (!getCache('probe')?.value?.ok || cacheStats().fresh < 1) failures.push('Durable cache check failed');
+if (getTools().length < 8) failures.push('Tool database seed is too small');
 if (failures.length) { console.error(failures.join('\n')); process.exit(1); }
 console.log('Protocol coverage checks passed.');
