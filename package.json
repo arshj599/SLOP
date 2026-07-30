@@ -1,0 +1,14 @@
+{
+  "name": "slop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SLOP Chrome extension and backend reference implementation for contextual AI tool recommendations.",
+  "scripts": {
+    "test": "node scripts/protocol-check.mjs",
+    "backend": "node backend/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
