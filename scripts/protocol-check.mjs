@@ -2,11 +2,16 @@ import { readFileSync, existsSync } from 'node:fs';
 import { classify, recommend, tools } from '../backend/server.js';
 import { cacheStats, getTools, resetDbForTests, seedTools, setCache, getCache } from '../backend/persistence.js';
 
-const requiredFiles = ['docs/deployment-protocol.md','extension/manifest.json','extension/background.js','extension/content.js','backend/server.js','backend/persistence.js','backend/llm.js','backend/tools.seed.json','backend/domain-categories.seed.json','backend/schema/postgres.sql','backend/adapters/README.md'];
+const requiredFiles = ['manifest.json','docs/deployment-protocol.md','extension/manifest.json','extension/background.js','extension/content.js','backend/server.js','backend/persistence.js','backend/llm.js','backend/tools.seed.json','backend/domain-categories.seed.json','backend/schema/postgres.sql','backend/adapters/README.md'];
 const failures = [];
 for (const file of requiredFiles) if (!existsSync(file)) failures.push(`Missing ${file}`);
+const rootManifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
 const manifest = JSON.parse(readFileSync('extension/manifest.json', 'utf8'));
-if (manifest.manifest_version !== 3) failures.push('Manifest must be v3');
+for (const [label, candidate] of [['Root manifest', rootManifest], ['Extension manifest', manifest]]) {
+  if (candidate.manifest_version !== 3) failures.push(`${label} must be v3`);
+}
+if (rootManifest.background?.service_worker !== 'extension/background.js') failures.push('Root manifest must point at extension/background.js');
+if (!rootManifest.content_scripts?.[0]?.js?.includes('extension/content.js')) failures.push('Root manifest must point at extension/content.js');
 for (const permission of ['activeTab','storage','tabs']) if (!manifest.permissions.includes(permission)) failures.push(`Missing permission ${permission}`);
 if (!manifest.background?.service_worker) failures.push('Missing background service worker');
 if (!manifest.content_scripts?.[0]?.js?.includes('content.js')) failures.push('Missing content script');

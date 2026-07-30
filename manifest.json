@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "SLOP AI Tool Recommendations",
+  "version": "0.1.0",
+  "description": "Contextual AI tool recommendations without executing third-party tools.",
+  "permissions": ["activeTab", "storage", "tabs"],
+  "host_permissions": ["http://localhost:8787/*"],
+  "background": { "service_worker": "extension/background.js", "type": "module" },
+  "content_scripts": [{ "matches": ["<all_urls>"], "js": ["extension/content.js"], "run_at": "document_idle" }],
+  "action": { "default_title": "Open SLOP" }
+}
